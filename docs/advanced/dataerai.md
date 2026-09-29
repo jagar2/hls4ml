@@ -2,9 +2,37 @@
 
 The optional Dataerai integration records workflow execution, source revisions,
 parameters, model and array fingerprints, generated artifacts, and failures.
-It creates metadata records and relationships; it never uploads source,
-weights, datasets, generated projects, or logs. Git commit/tree/blob references
-identify committed files. Checksums and locations identify other artifacts.
+It creates metadata records and relationships without calling file-content
+upload APIs. Git commit/tree/blob references identify committed files.
+Checksums and locations identify other artifacts. Explicit parameters and
+results are metadata: ordinary Python lists, dictionaries, and strings are
+stored as supplied after redaction. Use file references or NumPy arrays for
+bulk data; arrays are hashed rather than embedded.
+
+## Where to start
+
+| Your goal | Read this |
+| --- | --- |
+| Run a complete example without an account or FPGA tools | [Hands-on tutorials](dataerai-tutorials.md) |
+| Understand records, graph directions, Git identity, and reproducibility | [How provenance works](dataerai-records.md) |
+| Look up every Python method, CLI option, and environment variable | [API and command reference](dataerai-reference.md) |
+| Connect Dataerai, enable CI, retry failures, or diagnose missing records | [Operations and troubleshooting](dataerai-operations.md) |
+| Review implementation decisions and validation limits | [Integration design](dataerai-design.md) |
+
+The first tutorial generates a synthetic dataset, fits a linear model, writes
+HLS C++, and inspects its provenance graph. The second deliberately fails and
+shows which evidence survives. The third repeats the workflow with changed
+parameters and explains how to recover the recorded source revision.
+
+```{toctree}
+:hidden:
+
+dataerai-tutorials
+dataerai-records
+dataerai-reference
+dataerai-operations
+dataerai-design
+```
 
 ## Record an existing Python workflow
 
@@ -49,6 +77,7 @@ outside hls4ml, such as data preparation and training:
 
 ```python
 from pathlib import Path
+import hls4ml
 from hls4ml.provenance import Run
 
 with Run(
@@ -172,7 +201,7 @@ variables, never literal command arguments or metadata. Raw stdout, stderr,
 exception messages, and environment dumps are intentionally not captured.
 
 Git references require continued access to the referenced repository/commit.
-This integration does not mirror Git history, upload artifacts, or silently
+This integration does not mirror Git history, upload artifact files, or silently
 claim that unobserved activity was captured.
 
 See the [integration design and verification matrix](dataerai-design.md).

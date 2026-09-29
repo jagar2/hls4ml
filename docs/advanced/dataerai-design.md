@@ -1,7 +1,3 @@
----
-orphan: true
----
-
 # Dataerai provenance integration design
 
 ## Objective and scope
@@ -81,9 +77,12 @@ boundaries and the way to add explicit steps/artifact references.
 
 ## Verification
 
-New-test manifest: `test/pytest/test_dataerai_provenance.py` only.
+Test manifest: `test/pytest/test_dataerai_provenance.py` and
+`test/pytest/test_dataerai_tutorials.py`.
 The initial command-failure test was observed failing before the runner existed.
-Local validation on macOS / Python 3.14 passed all 25 new tests. The real
+Local validation on macOS / Python 3.14 passed all 29 tests: 25 integration
+checks and four tutorial checks. The focused documentation build passed with
+warnings treated as errors. The real
 graph test verifies byte-identical generated C++ with recording on and off;
 the failed-build test verifies partial-artifact retention without raw log
 content. The redirect test verifies bearer credentials are not forwarded.
@@ -92,6 +91,39 @@ and its archive contained all seven provenance modules. The companion
 Dataerai catalog check passed (98 feature definitions, 119 scenarios).
 The real graph test runs code generation without a licensed
 HLS toolchain. The HTTP retry test uses a local server, not a live Dataerai
-deployment. Live Dataerai synchronization, deployed GitHub observation, and
+deployment. Live Dataerai synchronization, automatic GitHub observer deployment, and
 licensed synthesis/co-simulation remain unverified until credentials,
 destination project, and vendor tools are configured. No frontend was changed.
+
+## Maintaining the documentation and tutorials
+
+The overview links to the tutorials, record semantics, API/CLI reference, and
+operations guide. The main hls4ml documentation includes that overview in its
+Advanced section. The tutorial page includes the executable script directly
+with Sphinx `literalinclude`, so rendered code stays aligned with tested code.
+
+The tutorial tests copy the published scripts into a real temporary Git
+repository and run them in subprocesses. They check actual fitted coefficients,
+generated HLS C++, input/output relationships, changed-seed comparisons,
+failure retention, and rejection of tampered journals. Generated datasets,
+models, journals, and HLS projects stay outside version control.
+
+Run the integration and tutorial checks from an environment with this checkout
+installed:
+
+```bash
+python -m pip install . pytest sphinx myst-parser
+python -m pytest -q test/pytest/test_dataerai_provenance.py test/pytest/test_dataerai_tutorials.py
+sphinx-build -W --keep-going -b html -c docs/tutorials/dataerai/sphinx docs .dataerai/docs-html
+```
+
+The focused documentation configuration builds all six provenance pages,
+including their cross-references and source inclusions. Warnings fail the
+build. It avoids the unrelated online extensions in the full hls4ml site;
+passing this check is not a claim that the entire upstream site was built or
+that external websites are reachable. Open
+`.dataerai/docs-html/advanced/dataerai.html` to read the rendered guide locally.
+
+The integration workflow runs both test modules on Python 3.10, 3.12, and 3.14,
+and builds the focused documentation on Python 3.12. Documentation and tutorial
+changes are included in its pull-request path filters.

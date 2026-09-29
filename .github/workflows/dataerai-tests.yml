@@ -9,6 +9,9 @@ on:
       - 'hls4ml/converters/**'
       - 'hls4ml/cli/**'
       - 'test/pytest/test_dataerai_provenance.py'
+      - 'test/pytest/test_dataerai_tutorials.py'
+      - 'docs/advanced/dataerai*.md'
+      - 'docs/tutorials/dataerai/**'
       - '.github/workflows/dataerai-*.yml'
 permissions:
   contents: read
@@ -25,3 +28,13 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install . pytest
       - run: python -m pytest -q test/pytest/test_dataerai_provenance.py
+      - run: python -m pytest -q test/pytest/test_dataerai_tutorials.py
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install sphinx myst-parser
+      - run: sphinx-build -W --keep-going -b html -c docs/tutorials/dataerai/sphinx docs .dataerai/docs-html

@@ -24,6 +24,12 @@ For introductory material on FPGAs, HLS and ML inferences using hls4ml, check ou
 
 Detailed tutorials on how to use `hls4ml`'s various functionalities can be found [here](https://github.com/hls-fpga-machine-learning/hls4ml-tutorial).
 
+This integration branch also provides [Dataerai workflow provenance](docs/advanced/dataerai.md),
+with [runnable tutorials](docs/advanced/dataerai-tutorials.md), a
+[Python/CLI reference](docs/advanced/dataerai-reference.md), and
+[CI setup and recovery guidance](docs/advanced/dataerai-operations.md).
+Committed source is referenced by Git revision; artifact files are not re-uploaded.
+
 # Installation
 ```bash
 pip install hls4ml
