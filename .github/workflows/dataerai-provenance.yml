@@ -1,0 +1,55 @@
+name: Dataerai provenance
+
+on:
+  workflow_run:
+    workflows: ['*']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  record:
+    # Enable with a repository variable. Never check out the triggering PR:
+    # workflow_run has secrets even when the observed run came from a fork.
+    if: vars.DATAERAI_TRACKING == 'true' && github.event.workflow_run.name != 'Dataerai provenance'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install trusted integration
+        run: pip install .
+      - name: Capture workflow metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OBSERVED_REPO: ${{ github.repository }}
+          OBSERVED_RUN: ${{ github.event.workflow_run.id }}
+        run: >-
+          python -m hls4ml.provenance github-run --repo "$OBSERVED_REPO"
+          --run-id "$OBSERVED_RUN" --journal .dataerai/workflow.jsonl
+      - name: Synchronize metadata to Dataerai
+        env:
+          DATAERAI_SERVER: ${{ vars.DATAERAI_SERVER }}
+          DATAERAI_PROJECT_ID: ${{ vars.DATAERAI_PROJECT_ID }}
+          DATAERAI_COLLECTION_ID: ${{ vars.DATAERAI_COLLECTION_ID }}
+          DATAERAI_TOKEN: ${{ secrets.DATAERAI_TOKEN }}
+        run: |
+          if [ -n "$DATAERAI_TOKEN" ]; then
+            python -m hls4ml.provenance sync .dataerai/workflow.jsonl
+          else
+            echo "Dataerai token absent; journal retained for later synchronization."
+          fi
+      - name: Preserve journal for retry
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataerai-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: .dataerai/workflow.jsonl
+          include-hidden-files: true
+          if-no-files-found: warn

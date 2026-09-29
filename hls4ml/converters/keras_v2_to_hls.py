@@ -3,6 +3,7 @@ import json
 import h5py
 
 from hls4ml.model import ModelGraph
+from hls4ml.provenance import tracked
 
 
 class KerasReader:
@@ -346,6 +347,7 @@ def parse_keras_model(model_arch, reader):
     return layer_list, input_layers, output_layers, output_shapes
 
 
+@tracked('hls4ml.converters.keras_v2_to_hls.keras_v2_to_hls')
 def keras_v2_to_hls(config):
     model_arch, reader = get_model_arch(config)
     layer_list, input_layers, output_layers, _ = parse_keras_model(model_arch, reader)

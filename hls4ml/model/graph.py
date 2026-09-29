@@ -17,6 +17,7 @@ from hls4ml.model.flow import get_flow
 from hls4ml.model.layers import Layer, layer_map
 from hls4ml.model.optimizer import get_available_passes, optimize_model
 from hls4ml.model.types import Serializable
+from hls4ml.provenance import tracked
 from hls4ml.utils.string_utils import convert_to_snake_case
 
 
@@ -419,6 +420,7 @@ class ModelGraph(Serializable):
         self._top_function_lib = None
 
     @classmethod
+    @tracked('hls4ml.model.graph.from_layer_list')
     def from_layer_list(cls, config_dict, layer_list, inputs=None, outputs=None, initial_index=0):
         def _find_output_variable_names(layer_list, layer_names):
             """Given a list of all layers, and a list input/output names, find the names of their outputs that will be used
@@ -460,6 +462,7 @@ class ModelGraph(Serializable):
         return model
 
     @classmethod
+    @tracked('hls4ml.model.graph.from_saved_state')
     def from_saved_state(cls, config, graph_state_dict):
         model = cls(config, graph_state_dict['inputs'], graph_state_dict['outputs'])
         model._applied_flows = graph_state_dict['applied_flows']
@@ -482,6 +485,7 @@ class ModelGraph(Serializable):
 
             self.graph[name] = self.make_node(kind, name, layer, inputs, outputs)
 
+    @tracked('hls4ml.model.graph.apply_flow')
     def apply_flow(self, flow, reapply='single'):
         """Applies a flow (a collection of optimizers).
 
@@ -784,6 +788,7 @@ class ModelGraph(Serializable):
 
         return variables
 
+    @tracked('hls4ml.model.graph.write', outputs=True)
     def write(self):
         """Write the generated project to disk.
 
@@ -793,6 +798,7 @@ class ModelGraph(Serializable):
 
         self.config.backend.write(self)
 
+    @tracked('hls4ml.model.graph.compile', outputs=True)
     def compile(self):
         """Compile the generated project and link the library into current environment.
 
@@ -911,6 +917,7 @@ class ModelGraph(Serializable):
         else:
             return output
 
+    @tracked('hls4ml.model.graph.predict')
     def predict(self, x, *args, **kwargs):
         backend = self.config.backend
 
@@ -919,6 +926,7 @@ class ModelGraph(Serializable):
 
         return self._predict(x)
 
+    @tracked('hls4ml.model.graph.trace')
     def trace(self, x):
         print(f'Recompiling {self.config.get_project_name()} with tracing')
         self.config.trace_output = True
@@ -1003,6 +1011,7 @@ class ModelGraph(Serializable):
         else:
             return output, trace_output
 
+    @tracked('hls4ml.model.graph.build', outputs=True)
     def build(self, **kwargs):
         """Builds the generated project using HLS compiler.
 
@@ -1036,6 +1045,7 @@ class ModelGraph(Serializable):
             f'{cls.__name__} is not intended to be deserialized directly. Use {cls.__name__}.from_saved_state instead.'
         )
 
+    @tracked('hls4ml.model.graph.save', outputs=True)
     def save(self, file_path):
         """Saves the ModelGraph to a file.
 
@@ -1060,6 +1070,7 @@ class MultiModelGraph:
         self._initialize_io_attributes(self.graphs)
 
     @classmethod
+    @tracked('hls4ml.model.graph.from_model_graph')
     def from_model_graph(cls, base_model: ModelGraph, split_before_layers: list[str]):
         """
         Create a MultiModelGraph by splitting a base ModelGraph at specified layer names,
@@ -1215,6 +1226,7 @@ class MultiModelGraph:
 
         return nn_config
 
+    @tracked('hls4ml.model.graph.build', outputs=True)
     def build(
         self,
         export=True,
@@ -1304,6 +1316,7 @@ class MultiModelGraph:
 
         return self.graph_reports
 
+    @tracked('hls4ml.model.graph.write', outputs=True)
     def write(self):
         for g in self.graphs:
             g.write()
@@ -1312,10 +1325,12 @@ class MultiModelGraph:
         # Bypass VitisWriter and invoke write_hls directly from VivadoWriter
         super(self.backend.writer.__class__, self.backend.writer).write_hls(self, is_multigraph=True)
 
+    @tracked('hls4ml.model.graph.compile', outputs=True)
     def compile(self):
         self.write()
         self._compile()
 
+    @tracked('hls4ml.model.graph.predict')
     def predict(self, x, sim='csim'):
         if sim == 'csim':
             return self._predict(x)
@@ -1346,6 +1361,7 @@ class MultiModelGraph:
         else:
             print('Unknown simulation option given.')
 
+    @tracked('hls4ml.model.graph.trace')
     def trace(self, x):
         raise NotImplementedError('Trace function has not been implemented yet for MultiModelGraph.')
 

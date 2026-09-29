@@ -2,6 +2,7 @@ import os
 
 import yaml
 
+from hls4ml.provenance import tracked
 from hls4ml.report.vivado_report import _parse_cosim_rpt, _parse_csynth_xml
 
 
@@ -13,6 +14,7 @@ class _ConfigLoader(yaml.SafeLoader):
 _ConfigLoader.add_multi_constructor('!', lambda loader, suffix, node: None)
 
 
+@tracked('hls4ml.report.vitis_unified_report.parse_vitis_unified_report')
 def parse_vitis_unified_report(hls_dir):
     if not os.path.exists(hls_dir):
         print(f'Path {hls_dir} does not exist. Exiting.')

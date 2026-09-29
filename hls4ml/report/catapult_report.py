@@ -3,7 +3,10 @@ import re
 
 import yaml
 
+from hls4ml.provenance import tracked
 
+
+@tracked('hls4ml.report.catapult_report.read_catapult_report')
 def read_catapult_report(hls_dir, full_report=False):
     if not os.path.exists(hls_dir):
         print(f'Path {hls_dir} does not exist. Exiting.')
@@ -128,6 +131,7 @@ def _get_abs_and_percentage_values(unparsed_cell):
     return int(unparsed_cell.split('(')[0]), float(unparsed_cell.split('(')[1].replace('%', '').replace(')', ''))
 
 
+@tracked('hls4ml.report.catapult_report.parse_catapult_report')
 def parse_catapult_report(output_dir):
     if not os.path.exists(output_dir):
         print(f'Project OutputDir {output_dir} does not exist. Exiting.')

@@ -17,3 +17,5 @@ hls4mlprj_*
 *.ipynb
 *.ipynb_checkpoints/
 *.bak
+.venv/
+.dataerai/

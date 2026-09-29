@@ -1,6 +1,9 @@
 from pathlib import Path
 
+from hls4ml.provenance import tracked
 
+
+@tracked('hls4ml.report.libero_report.parse_libero_report')
 def parse_libero_report(out_dir):
     """Reads and parses an FPGA synthesis report into a structured dictionary."""
 

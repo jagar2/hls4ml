@@ -1,4 +1,5 @@
 from hls4ml.model import ModelGraph
+from hls4ml.provenance import tracked
 from hls4ml.utils.dependency import requires
 
 
@@ -265,6 +266,7 @@ def parse_onnx_model(onnx_model):
 
 
 @requires('onnx')
+@tracked('hls4ml.converters.onnx_to_hls.onnx_to_hls')
 def onnx_to_hls(config):
     """Convert onnx model to hls model from configuration.
 

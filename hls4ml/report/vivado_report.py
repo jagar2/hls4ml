@@ -3,7 +3,10 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+from hls4ml.provenance import tracked
 
+
+@tracked('hls4ml.report.vivado_report.read_vivado_report')
 def read_vivado_report(hls_dir, full_report=False):
     if not os.path.exists(hls_dir):
         print(f'Path {hls_dir} does not exist. Exiting.')
@@ -166,6 +169,7 @@ def _parse_cosim_rpt(cosim_file):
     return cosim_report
 
 
+@tracked('hls4ml.report.vivado_report.parse_vivado_report')
 def parse_vivado_report(hls_dir):
     if not os.path.exists(hls_dir):
         print(f'Path {hls_dir} does not exist. Exiting.')

@@ -2,6 +2,7 @@ import numpy as np
 
 from hls4ml.converters.utils import is_depthwise_conv
 from hls4ml.model import ModelGraph
+from hls4ml.provenance import tracked
 from hls4ml.utils.dependency import requires
 
 
@@ -497,6 +498,7 @@ def parse_pytorch_model(config, verbose=True):
 
 
 @requires('_torch')
+@tracked('hls4ml.converters.pytorch_to_hls.pytorch_to_hls')
 def pytorch_to_hls(config):
     layer_list, input_layers, output_layers = parse_pytorch_model(config)
     return ModelGraph.from_layer_list(config, layer_list, inputs=input_layers, outputs=output_layers)

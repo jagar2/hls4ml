@@ -6,6 +6,7 @@ from typing import Any
 
 from hls4ml.converters.utils import IsolatedLayerReader
 from hls4ml.model import ModelGraph
+from hls4ml.provenance import tracked
 
 if typing.TYPE_CHECKING:
     import keras
@@ -367,6 +368,7 @@ def parse_keras_v3_model(model: 'keras.Model', allow_da_fallback=True, allow_v2_
     return layer_list, input_layer_names, output_layer_names, batch_output_shapes
 
 
+@tracked('hls4ml.converters.keras_v3_to_hls.keras_v3_to_hls')
 def keras_v3_to_hls(config, allow_da_fallback, allow_v2_fallback):
     layer_list, input_layers, output_layers, _ = parse_keras_v3_model(
         config['KerasModel'], allow_da_fallback, allow_v2_fallback

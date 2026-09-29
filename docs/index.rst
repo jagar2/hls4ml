@@ -48,6 +48,7 @@
     :caption: Advanced Features
 
     advanced/profiling
+    advanced/dataerai
     advanced/auto
     advanced/hgq
     advanced/da

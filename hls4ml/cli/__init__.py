@@ -9,6 +9,7 @@ import h5py
 import yaml
 
 import hls4ml
+from hls4ml.provenance import tracked
 
 config_filename = 'hls4ml_config.yml'
 
@@ -79,6 +80,7 @@ def main():
         parser.print_usage()
 
 
+@tracked('hls4ml.cli.__init__._config')
 def _config(args, extra_args):
     if args.model is None:
         print('Model file (-m or --model) must be provided.')
@@ -146,6 +148,7 @@ def _config(args, extra_args):
         yaml.dump(config, sys.stdout, default_flow_style=False, sort_keys=False)
 
 
+@tracked('hls4ml.cli.__init__._convert')
 def _convert(args, extra_args):
     model = hls4ml.converters.convert_from_config(args.config)
 
@@ -153,6 +156,7 @@ def _convert(args, extra_args):
         model.write()
 
 
+@tracked('hls4ml.cli.__init__._build')
 def _build(args, extra_args):
     if args.project is None:
         print('Project directory (-p or --project) must be provided.')
@@ -278,6 +282,7 @@ def _build_quartus(args, extra_args):
     os.chdir(curr_dir)
 
 
+@tracked('hls4ml.cli.__init__._report')
 def _report(args, extra_args):
     if args.project is None:
         print('Project directory (-p or --project) must be provided.')

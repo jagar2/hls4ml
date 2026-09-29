@@ -2,9 +2,11 @@ import os
 import webbrowser
 from ast import literal_eval
 
+from hls4ml.provenance import tracked
 from hls4ml.utils.dependency import requires
 
 
+@tracked('hls4ml.report.quartus_report.parse_quartus_report')
 def parse_quartus_report(hls_dir, write_to_file=True):
     """
     Parse a report from a given Quartus project as a dictionary.
@@ -42,6 +44,7 @@ def parse_quartus_report(hls_dir, write_to_file=True):
 
 
 @requires('quartus-report')
+@tracked('hls4ml.report.quartus_report.read_quartus_report')
 def read_quartus_report(hls_dir, open_browser=False):
     """
     Parse and print the Quartus report to print the report. Optionally open a browser.

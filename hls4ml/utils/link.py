@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from hls4ml.model.graph import HLSConfig, ModelGraph
+from hls4ml.provenance import tracked
 
 
 class FilesystemModelGraph(ModelGraph):
@@ -60,12 +61,14 @@ class FilesystemModelGraph(ModelGraph):
     def get_output_variables(self):
         return self.out_vars
 
+    @tracked('hls4ml.utils.link.compile', outputs=True)
     def compile(self):
         return super()._compile()
 
     def predict(self, x):
         return super().predict(x)
 
+    @tracked('hls4ml.utils.link.build', outputs=True)
     def build(self, **kwargs):
         return self.config.backend.build(self, **kwargs)
 

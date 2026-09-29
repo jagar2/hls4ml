@@ -1,0 +1,27 @@
+name: Dataerai integration tests
+on:
+  push:
+    branches: ['codex/dataerai-provenance']
+  pull_request:
+    paths:
+      - 'hls4ml/provenance/**'
+      - 'hls4ml/model/**'
+      - 'hls4ml/converters/**'
+      - 'hls4ml/cli/**'
+      - 'test/pytest/test_dataerai_provenance.py'
+      - '.github/workflows/dataerai-*.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install . pytest
+      - run: python -m pytest -q test/pytest/test_dataerai_provenance.py

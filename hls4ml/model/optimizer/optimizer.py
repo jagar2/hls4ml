@@ -2,6 +2,7 @@ import importlib
 import inspect
 import os
 
+from hls4ml.provenance import tracked
 from hls4ml.utils.string_utils import convert_to_snake_case
 
 
@@ -291,6 +292,7 @@ def get_available_passes():
     return list(optimizer_map.keys())
 
 
+@tracked('hls4ml.model.optimizer.optimizer.optimize_model')
 def optimize_model(model, passes):
     """Optimize a given model with the given passes.
 

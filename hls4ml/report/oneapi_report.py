@@ -3,6 +3,8 @@ import json
 import os
 import re
 
+from hls4ml.provenance import tracked
+
 
 def _convert_to_oneapi_naming(s):
     s2 = s.lower()
@@ -137,6 +139,7 @@ def _parse_single_report(prjDir):
     return report
 
 
+@tracked('hls4ml.report.oneapi_report.parse_oneapi_report')
 def parse_oneapi_report(hls_dir):
     """
     Parse a report from a given oneAPI project as a dictionary.
