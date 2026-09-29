@@ -32,6 +32,8 @@ def main(argv=None):
     record.add_argument('--journal')
     record.add_argument('--allow-dirty', action='store_true')
     record.add_argument('--sync', action='store_true')
+    record.add_argument('--preserve', action='store_true', help='Snapshot recorded files and create a bundle')
+    record.add_argument('--upload', action='store_true', help='Preserve and upload the bundle through the SDK')
     record.add_argument('--script', help='Python script executed in this process to capture hls4ml operations')
     record.add_argument('--module', help='Python module executed in this process')
     record.add_argument('--input', action='append', default=[])
@@ -40,6 +42,10 @@ def main(argv=None):
     sync = commands.add_parser('sync')
     sync.add_argument('journal')
     sync.add_argument('--allow-incomplete', action='store_true')
+    preserve = commands.add_parser('preserve', help='Bundle existing evidence; optionally upload through the SDK')
+    preserve.add_argument('journal')
+    preserve.add_argument('--upload', action='store_true')
+    preserve.add_argument('--sync', action='store_true')
     verify = commands.add_parser('verify')
     verify.add_argument('journal')
     github = commands.add_parser('github-run', help='Observe a completed GitHub workflow, its jobs, steps, and artifacts')
@@ -51,6 +57,11 @@ def main(argv=None):
         from ._github import capture_github_run
 
         capture_github_run(args.repo, args.run_id, os.environ['GITHUB_TOKEN'], args.journal)
+        return 0
+    if args.action == 'preserve':
+        from ._options import publish
+
+        print(json.dumps(publish(args.journal, sync=args.sync, upload=args.upload, preserve=True)))
         return 0
     if args.action == 'verify':
         events = read_journal(args.journal)
@@ -64,13 +75,20 @@ def main(argv=None):
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     if not args.script and not args.module and not command:
         parser.error('Provide --script, --module, or a command after --')
-    client = _client() if args.sync else None
-    run = Run(args.name, repository=args.repo, journal=args.journal, allow_dirty=args.allow_dirty)
+    if args.sync:
+        _client()
+    run = Run(
+        args.name,
+        repository=args.repo,
+        journal=args.journal,
+        allow_dirty=args.allow_dirty,
+        preserve=args.preserve or args.upload,
+    )
     code = 0
     try:
         with run:
             for path in args.input:
-                run.artifact(path, role='input')
+                run.artifacts(path, role='input')
             try:
                 if args.script or args.module:
                     script = str(Path(args.script).absolute()) if args.script else None
@@ -91,15 +109,19 @@ def main(argv=None):
                     run.command(command)
             finally:
                 for path in args.output:
-                    if Path(path).is_file():
-                        run.artifact(path)
+                    if Path(path).exists() or args.preserve or args.upload:
+                        run.artifacts(path)
     except subprocess.CalledProcessError as exc:
         code = exc.returncode if exc.returncode >= 0 else 128 - exc.returncode
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
     finally:
-        if client and run.id:
-            print(json.dumps(client.sync(run.path)))
+        if run.id:
+            from ._options import publish
+
+            result = publish(run.path, sync=args.sync, upload=args.upload, preserve=args.preserve)
+            if result is not None:
+                print(json.dumps(result))
     print(f'Provenance journal: {run.path}', file=sys.stderr)
     return code
 

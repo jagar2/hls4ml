@@ -59,6 +59,7 @@ for model_type in model_types:
             continue
 
 
+@tracked('hls4ml.converters.__init__.parse_yaml_config')
 def parse_yaml_config(config_file):
     """Parse conversion configuration from the provided YAML file.
 

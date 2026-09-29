@@ -2,12 +2,14 @@
 
 The optional Dataerai integration records workflow execution, source revisions,
 parameters, model and array fingerprints, generated artifacts, and failures.
-It creates metadata records and relationships without calling file-content
-upload APIs. Git commit/tree/blob references identify committed files.
+By default it creates metadata records and relationships without uploading file content.
+Opt into snapshots and Dataerai bundle uploads to preserve recorded data bytes. Git commit/tree/blob references identify committed files.
 Checksums and locations identify other artifacts. Explicit parameters and
 results are metadata: ordinary Python lists, dictionaries, and strings are
 stored as supplied after redaction. Use file references or NumPy arrays for
-bulk data; arrays are hashed rather than embedded.
+bulk data; arrays are hashed rather than embedded. With `preserve=True`,
+NumPy arguments and results of instrumented operations are additionally saved
+as non-pickled `.npy` snapshots.
 
 ## Where to start
 
@@ -62,7 +64,7 @@ The shared hooks cover:
 - Project writing, compilation, prediction, tracing, synthesis/build, and save.
 - Multi-model graph operations and report parsing.
 - Existing hls4ml CLI config, convert, build, and report handlers when invoked
-  using `--module hls4ml.cli`.
+  with the `--dataerai` switch on each command.
 
 Model configurations and weight fingerprints describe the model used. NumPy
 arrays are represented by shape, dtype, and SHA-256, not their contents.
@@ -81,7 +83,7 @@ import hls4ml
 from hls4ml.provenance import Run
 
 with Run(
-    'jet classifier', repository='.', parameters={'seed': 42},
+    'jet classifier', repository='.', enabled=True, preserve=True, parameters={'seed': 42},
     tool_versions={'vitis_hls': 'your installed version'},
 ) as run:
     dataset = run.artifact(Path('datasets/jets.npy'), role='input',

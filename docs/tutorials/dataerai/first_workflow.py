@@ -9,21 +9,24 @@ from pathlib import Path
 import numpy as np
 
 from hls4ml.model.graph import ModelGraph
-from hls4ml.provenance import Run
+from hls4ml.provenance import add_arguments, workflow
 from hls4ml.utils.config import create_config
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--repo', type=Path, default=Path.cwd())
+    parser.add_argument('--repo', type=Path, help='Source checkout; overrides --dataerai-repo')
     parser.add_argument('--output', type=Path, default=Path('.dataerai/tutorial'))
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--fail-after-fit', action='store_true')
+    add_arguments(parser, enabled=True)
     args = parser.parse_args(argv)
     output = args.output.resolve()
     journal = output / 'run.jsonl'
 
-    with Run(
+    output.mkdir(parents=True, exist_ok=True)
+    with workflow(
+        args,
         'Synthetic linear model tutorial',
         repository=args.repo,
         journal=journal,
@@ -78,7 +81,7 @@ def main(argv=None):
             )
             graph.write()
 
-    print(json.dumps({'journal': str(journal), 'output': str(output), 'metrics': metrics}))
+    print(json.dumps({'journal': str(run.path) if run.id else None, 'output': str(output), 'metrics': metrics}))
 
 
 if __name__ == '__main__':

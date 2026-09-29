@@ -10,6 +10,7 @@ import yaml
 
 import hls4ml
 from hls4ml.provenance import tracked
+from hls4ml.provenance._options import add_arguments, workflow
 
 config_filename = 'hls4ml_config.yml'
 
@@ -72,9 +73,28 @@ def main():
 
     parser.add_argument('--version', action='version', version=f'%(prog)s {hls4ml.__version__}')
 
+    for command_parser in (config_parser, convert_parser, build_parser, report_parser):
+        add_arguments(command_parser)
+
     args, extra_args = parser.parse_known_args()
     if hasattr(args, 'func'):
-        args.func(args, extra_args)
+        with workflow(args, f'hls4ml {args.func.__name__.lstrip("_")}') as run:
+            for name in ('model', 'weights', 'config'):
+                path = getattr(args, name, None)
+                if path and os.path.isfile(path):
+                    run.artifact(path, role='input')
+            project = getattr(args, 'project', None)
+            if args.func in (_build, _report) and project and os.path.isdir(project):
+                run.artifacts(project, role='input')
+            try:
+                args.func(args, extra_args)
+            finally:
+                if args.func == _build and project and os.path.isdir(project):
+                    run.artifacts(project)
+                if args.func == _config and args.output:
+                    output = args.output if args.output.endswith('.yml') else args.output + '.yml'
+                    if os.path.isfile(output):
+                        run.artifact(output)
     else:
         print(hls4ml_description)
         parser.print_usage()
@@ -180,6 +200,14 @@ def _build(args, extra_args):
         print(f'Backend {backend} does not support building projects.')
 
 
+@tracked('hls4ml.cli.run_hls_command')
+def _run_hls_command(command):
+    status = os.system(command)
+    if status:
+        code = os.waitstatus_to_exitcode(status) if os.name == 'posix' else status
+        raise SystemExit(code if code >= 0 else 128 - code)
+
+
 def _build_vivado(args, extra_args):
     vivado_parser = argparse.ArgumentParser(prog=f'hls4ml build -p {args.project}', add_help=False)
     vivado_parser.add_argument('-c', '--simulation', help='Run C simulation', action='store_true', default=False)
@@ -221,7 +249,7 @@ def _build_vivado(args, extra_args):
             print('Vivado HLS installation not found. Make sure "vivado_hls" is on PATH.')
             sys.exit(1)
 
-    os.system(
+    _run_hls_command(
         (
             'cd {dir} && vivado_hls -f build_prj.tcl "reset={reset} csim={csim} synth={synth} cosim={cosim} '
             'validation={validation} export={export} vsynth={vsynth}"'
@@ -266,20 +294,22 @@ def _build_quartus(args, extra_args):
 
     curr_dir = os.getcwd()
 
-    os.chdir(yamlConfig['OutputDir'])
-    if synth:
-        os.system(f'make {project_name}-fpga')
-        os.system(f'./{project_name}-fpga')
+    try:
+        os.chdir(yamlConfig['OutputDir'])
+        if synth:
+            _run_hls_command(f'make {project_name}-fpga')
+            _run_hls_command(f'./{project_name}-fpga')
 
-    if qsynth:
-        found = os.system('command -v quartus_sh > /dev/null')
-        if found != 0:
-            print('Quartus installation not found. Make sure "quartus_sh" is on PATH.')
-            sys.exit(1)
-        os.chdir(project_name + '-fpga.prj/quartus')
-        os.system('quartus_sh --flow compile quartus_compile')
+        if qsynth:
+            found = os.system('command -v quartus_sh > /dev/null')
+            if found != 0:
+                print('Quartus installation not found. Make sure "quartus_sh" is on PATH.')
+                sys.exit(1)
+            os.chdir(project_name + '-fpga.prj/quartus')
+            _run_hls_command('quartus_sh --flow compile quartus_compile')
 
-    os.chdir(curr_dir)
+    finally:
+        os.chdir(curr_dir)
 
 
 @tracked('hls4ml.cli.__init__._report')

@@ -10,6 +10,7 @@ on:
       - 'hls4ml/cli/**'
       - 'test/pytest/test_dataerai_provenance.py'
       - 'test/pytest/test_dataerai_tutorials.py'
+      - 'test/pytest/test_dataerai_preservation.py'
       - 'docs/advanced/dataerai*.md'
       - 'docs/tutorials/dataerai/**'
       - '.github/workflows/dataerai-*.yml'
@@ -29,6 +30,7 @@ jobs:
       - run: pip install . pytest
       - run: python -m pytest -q test/pytest/test_dataerai_provenance.py
       - run: python -m pytest -q test/pytest/test_dataerai_tutorials.py
+      - run: python -m pytest -q test/pytest/test_dataerai_preservation.py
   documentation:
     runs-on: ubuntu-latest
     steps:

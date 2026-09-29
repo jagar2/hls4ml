@@ -63,7 +63,20 @@ class Run:
     thread workers require ``contextvars.copy_context()`` or their own run.
     """
 
-    def __init__(self, name, *, repository='.', journal=None, allow_dirty=False, parameters=None, tool_versions=None):
+    def __init__(
+        self,
+        name,
+        *,
+        repository='.',
+        journal=None,
+        allow_dirty=False,
+        parameters=None,
+        tool_versions=None,
+        enabled=True,
+        preserve=False,
+    ):
+        self.enabled = enabled
+        self.preserve = preserve
         self.name = name
         self.repository = Path(repository).absolute()
         self.path = journal
@@ -71,10 +84,17 @@ class Run:
         self.parameters = parameters or {}
         self.tool_versions = tool_versions or {}
         self.id = None
+        self._entered = False
         self._sources = {}
         self._producers = {}
 
     def __enter__(self):
+        if self._entered:
+            raise RuntimeError('Each Run may only be entered once')
+        self._entered = True
+        if not self.enabled:
+            self._token = _CURRENT.set(None)
+            return self
         if _CURRENT.get() is not None or self.id is not None:
             raise RuntimeError('Use run.step() for nesting; each Run may only be entered once')
         source = repository_identity(self.repository, allow_dirty=self.allow_dirty)
@@ -97,6 +117,7 @@ class Run:
                 {
                     'status': 'running',
                     'parameters': self.parameters,
+                    'preserve_files': self.preserve,
                     'environment': environment,
                 },
                 [link(self.code_id, 'implements')],
@@ -109,16 +130,24 @@ class Run:
         return self
 
     def __exit__(self, exc_type, exc, tb):
+        if not self.enabled:
+            _CURRENT.reset(self._token)
+            return
         try:
             for module in list(sys.modules.values()):
                 filename = getattr(module, '__file__', None)
                 if filename:
                     path = Path(filename).resolve()
                     if path.suffix == '.py' and path.is_relative_to(self.repository.resolve()) and path.is_file():
+                        reference = file_reference(path)
+                        if self.preserve:
+                            from ._preserve import snapshot
+
+                            snapshot(reference, self.path)
                         self.journal.append(
                             'software_code',
                             f'Imported module: {path.name}',
-                            file_reference(path),
+                            reference,
                             [{'target': self.id, 'type': 'implements', 'direction': 'incoming'}],
                         )
             self.journal.append(
@@ -140,6 +169,9 @@ class Run:
 
     @contextmanager
     def step(self, name, *, parameters=None, inputs=(), code=None):
+        if not self.enabled:
+            yield _Completion()
+            return
         if _CURRENT.get() is not self:
             raise RuntimeError('Steps must execute inside their active Run context')
         links = [link(_PARENT.get() or self.id, 'step_of'), link(self.code_id, 'implements')]
@@ -147,6 +179,10 @@ class Run:
         if code is not None:
             path = str(Path(code).absolute())
             reference = file_reference(path)
+            if self.preserve:
+                from ._preserve import snapshot
+
+                snapshot(reference, self.path)
             identity = digest(reference)
             if identity not in self._sources:
                 self._sources[identity] = self.journal.append('software_code', Path(path).name, reference)
@@ -175,6 +211,8 @@ class Run:
                 _PARENT.reset(token)
 
     def artifact(self, path, *, role='output', uri=None):
+        if not self.enabled:
+            return None
         if _CURRENT.get() is not self:
             raise RuntimeError('Artifacts must be recorded inside their active Run context')
         if role not in ('input', 'output'):
@@ -182,6 +220,10 @@ class Run:
         reference = file_reference(path)
         if uri is not None:
             reference['uri'] = uri
+        if self.preserve:
+            from ._preserve import snapshot
+
+            snapshot(reference, self.path)
         reference['role'] = role
         parent = _PARENT.get() or self.id
         edge = {'target': parent, 'type': 'produces' if role == 'output' else 'derived_from', 'direction': 'incoming'}
@@ -189,6 +231,38 @@ class Run:
             'software_code' if reference['storage'] == 'git' else 'dataset', Path(path).name, reference, [edge]
         )
         return artifact
+
+    def array(self, value, *, name='array', role='output'):
+        """Snapshot a NumPy array without pickle; enabled only with preservation."""
+        if not self.enabled or not self.preserve:
+            return None
+        import tempfile
+
+        import numpy as np
+
+        with tempfile.TemporaryDirectory(prefix='hls4ml-array-') as directory:
+            path = Path(directory) / (Path(name).name + '.npy')
+            np.save(path, value, allow_pickle=False)
+            identifier = self.artifact(path, role=role)
+        return identifier
+
+    def artifacts(self, path, *, role='output'):
+        """Record a file or directory tree, excluding this run's evidence files."""
+        if not self.enabled:
+            return []
+        root = Path(path)
+        if not root.exists():
+            raise FileNotFoundError(root)
+        paths = sorted(root.rglob('*')) if root.is_dir() else [root]
+        excluded = {Path(str(self.path) + suffix).resolve() for suffix in ('', '.files', '.zip', '.preserved.json')}
+        result = []
+        for item in paths:
+            resolved = item.resolve()
+            if '.git' in item.parts or any(resolved == entry or entry in resolved.parents for entry in excluded):
+                continue
+            if item.is_file():
+                result.append(self.artifact(item, role=role))
+        return result
 
     def command(self, argv, *, cwd=None):
         cwd = Path(cwd or self.repository).resolve()
@@ -215,6 +289,49 @@ class Run:
         return process
 
 
+def _record_files(run, value):
+    if not run.preserve or not isinstance(value, dict):
+        return
+    file_keys = {
+        'config',
+        'config_file',
+        'file_path',
+        'input_data_tb',
+        'output_data_tb',
+        'KerasH5',
+        'KerasJson',
+        'KerasModel',
+        'OnnxModel',
+        'PytorchModel',
+        'InputData',
+        'OutputPredictions',
+    }
+    for key, item in value.items():
+        if key in file_keys and isinstance(item, (str, Path)) and Path(item).is_file():
+            run.artifact(item, role='input')
+        elif isinstance(item, dict):
+            _record_files(run, item)
+
+
+def _record_arrays(run, value, *, role, seen=None):
+    if not run.preserve:
+        return
+    import numpy as np
+
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return
+    seen.add(id(value))
+    if isinstance(value, np.ndarray):
+        run.array(value, role=role)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _record_arrays(run, item, role=role, seen=seen)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _record_arrays(run, item, role=role, seen=seen)
+
+
 def tracked(name, *, outputs=False):
     """Preserve public signatures/return values and incur no IO when disabled."""
 
@@ -233,23 +350,26 @@ def tracked(name, *, outputs=False):
             if code and not Path(code).is_file():
                 code = None
             with run.step(name, parameters=parameters, inputs=inputs, code=code) as completion:
+                _record_arrays(run, bound.arguments, role='input')
+                if function.__name__ != 'save':
+                    _record_files(run, bound.arguments)
                 try:
                     if args and type(args[0]).__module__ == 'hls4ml.utils.link':
-                        for path in sorted(Path(args[0].config.get_output_dir()).rglob('*')):
-                            if path.is_file() and not path.is_symlink() and path.resolve() != run.path.resolve():
-                                run.artifact(path, role='input')
+                        run.artifacts(args[0].config.get_output_dir(), role='input')
                     result = function(*args, **kwargs)
                     completion['result'] = summarize(result)
+                    _record_arrays(run, result, role='output')
+                    _record_files(run, result)
                     if args and hasattr(args[0], 'config'):
                         completion['model_after'] = summarize(args[0])
                 finally:
                     if outputs:
                         directory = Path(args[0].config.get_output_dir())
                         if directory.is_dir():
-                            for path in sorted(directory.rglob('*')):
-                                if path.is_file() and not path.is_symlink() and '.git' not in path.parts:
-                                    if path.resolve() != run.path.resolve():
-                                        run.artifact(path)
+                            run.artifacts(directory)
+                        archive = Path(str(directory) + '.tar.gz')
+                        if archive.is_file():
+                            run.artifact(archive)
                         if function.__name__ == 'save' and Path(bound.arguments['file_path']).is_file():
                             run.artifact(bound.arguments['file_path'])
             for key in _identities({'result': completion.get('result'), 'model': completion.get('model_after')}):

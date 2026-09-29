@@ -196,3 +196,17 @@ depending on it. Hashing and per-event disk synchronization add overhead,
 especially for large model arrays or generated project trees. Removing the
 Run wrapper or disabling `DATAERAI_TRACKING` stops new capture without deleting
 existing evidence. Deleting remote records is a separate administrative action.
+
+## Preservation and upload recovery
+
+Use the [preservation tutorial](dataerai-tutorials.md)
+to keep recorded file bytes in Dataerai. Metadata synchronization alone does not
+upload them. Preserve `run.jsonl.files` beside its journal until a bundle has
+been uploaded and independently recovered. Do not edit either the journal or
+snapshots. A checksum failure means the requested evidence cannot be claimed
+as preserved; recover the original bytes or rerun as a new execution.
+
+The transfer daemon and Python SDK are optional and only required for upload.
+An older daemon that omits its server identity is rejected. No login tokens are
+stored in the bundle. Secret-like metadata keys are redacted, but file contents
+are intentionally retained verbatim: record only the data you intend to store.

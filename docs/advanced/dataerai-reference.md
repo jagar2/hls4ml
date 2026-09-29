@@ -1,6 +1,7 @@
 # Dataerai API and command reference
 
-The public Python imports are `Run`, `tracked`, and `read_journal` from
+The public Python imports include `Run`, `tracked`, `read_journal`,
+`preservation_bundle`, `preserve_to_dataerai`, `add_arguments`, and `workflow` from
 `hls4ml.provenance`. Use the CLI for synchronization. The implementation's
 underscore-prefixed modules are internal and are not a separate stable SDK.
 
@@ -8,11 +9,13 @@ underscore-prefixed modules are internal and are not a separate stable SDK.
 
 ```python
 Run(name, *, repository='.', journal=None, allow_dirty=False,
-    parameters=None, tool_versions=None)
+    parameters=None, tool_versions=None, enabled=True, preserve=False)
 ```
 
 | Argument | Meaning |
 | --- | --- |
+| `enabled` | Default `True`; `False` disables recording, Git checks, and preservation IO |
+| `preserve` | Default `False`; snapshot recorded non-Git files before they can change |
 | `name` | Workflow title in the journal and Dataerai |
 | `repository` | An existing Git working tree with a committed `HEAD` |
 | `journal` | New JSONL file; default is `repository/.dataerai/<uuid>.jsonl` |
@@ -64,10 +67,11 @@ uploads the file nor fetches/verifies the URI. URL credentials and query
 strings are redacted, so avoid using a signed URL as your only durable pointer.
 The stored SHA-256 describes the local file you actually supplied.
 
-Directories are not accepted by this method. Iterate over the specific files
-you want recorded. Generated HLS project files are inventoried automatically
+Use `run.artifacts(directory, role="input")` or `run.artifacts(directory)`
+to inventory a directory recursively. The current run journal, snapshot store,
+bundle, and receipt are excluded to prevent recursive capture. Generated HLS project files are inventoried automatically
 by the operation hooks. Symlinks are recorded as link references, not as a
-snapshot of the target's contents. All relative file paths resolve against
+snapshot of the target's contents. Preservation mode rejects symlinks. All relative file paths resolve against
 the Python process's current working directory.
 
 ### `run.command`
@@ -197,3 +201,58 @@ The recorder also copies this restricted CI context when available:
 `GITHUB_SHA`, `CI_PIPELINE_ID`, `CI_JOB_ID`, `CI_COMMIT_SHA`, `BUILD_NUMBER`,
 and `BUILD_URL`. It does not dump the full environment. Seeds, arbitrary
 environment variables, and tool versions need explicit workflow metadata.
+
+## Optional flags across commands and tutorials
+
+Every `hls4ml config`, `convert`, `build`, and `report` subcommand accepts:
+
+| Switch | Effect |
+| --- | --- |
+| `--dataerai` | Record locally; no network |
+| `--no-dataerai` | Disable recording; incompatible with preservation/publication switches |
+| `--dataerai-preserve` | Enable recording, snapshot files, and build a local ZIP |
+| `--dataerai-sync` | Enable recording and publish metadata/relationships |
+| `--dataerai-upload` | Enable preservation and upload the ZIP through the optional SDK |
+| `--dataerai-journal PATH` | Choose a new journal path |
+| `--dataerai-repo PATH` | Source checkout; defaults to current directory |
+| `--dataerai-input PATH` | Repeatable input file or directory |
+| `--dataerai-output PATH` | Repeatable output file or directory, captured even on failure |
+
+Combine `--dataerai-upload --dataerai-sync` to upload the bytes, publish the graph,
+and connect the workflow to its preserved bundle. Upload alone retains the
+complete journal and graph in the bundle, without creating individual graph
+records. Existing commands remain untracked by default. The dedicated Dataerai
+tutorial retains its recording-enabled default; it accepts the same switches.
+
+For the generic runner, use `run --preserve`, `run --upload`, and `run --sync`.
+Its `--input` and `--output` accept files or directory trees. In preservation mode all explicitly declared paths must exist; missing outputs
+are a recording failure. Metadata-only runner mode retains its historical
+behavior of skipping missing outputs.
+
+```bash
+hls4ml convert -c config.yml --dataerai-preserve
+python -m hls4ml.provenance run --preserve --input dataset --output results --script workflow.py
+python -m hls4ml.provenance preserve run.jsonl
+python -m hls4ml.provenance preserve run.jsonl --upload --sync
+```
+
+`preservation_bundle(journal)` returns the ZIP path. `preserve_to_dataerai(journal,
+client=connected_sdk_client, server=origin, project=uuid, collection=uuid,
+allocation=uuid)` returns an upload receipt with asset ID, immutable content ID,
+bundle checksum, and journal integrity root. Collection and allocation are optional.
+The SDK must report the same authenticated server; older daemons lacking that
+field must be upgraded. SDK upload completion and byte count are required.
+
+The public `add_arguments(parser, enabled=False)` and `workflow(args, name, ...)`
+helpers let other scripts use these same switches without duplicating connection
+logic. `workflow` accepts `repository`, `journal`, and `parameters` overrides.
+It closes evidence before publication, and tries publication after a scientific
+failure while propagating the original exception. Publication errors on otherwise
+successful work propagate normally. Local evidence is retained in both cases.
+
+`run.array(numpy_array, name='array', role='output')` snapshots an in-memory
+array when preservation is enabled and returns its artifact ID. Object arrays
+are rejected because preservation never enables pickle. Instrumented hls4ml
+operations automatically capture NumPy arrays in argument/result containers.
+Save other model/framework objects using their native file format, then call
+`run.artifact`; arbitrary object memory is not serialized.

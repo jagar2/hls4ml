@@ -71,7 +71,7 @@ branch adoption. Roll back by removing the Run wrapper or disabling the
 repository variable. Existing hls4ml use stays unchanged.
 
 No arbitrary subprocess tracer, cell-history recorder, automatic training
-framework patching, external artifact backup, authenticated signature, or
+framework patching, automatic backup of undeclared files, authenticated signature, or
 automatic credential refresh is claimed. The user guide states these capture
 boundaries and the way to add explicit steps/artifact references.
 
@@ -127,3 +127,38 @@ that external websites are reachable. Open
 The integration workflow runs both test modules on Python 3.10, 3.12, and 3.14,
 and builds the focused documentation on Python 3.12. Documentation and tutorial
 changes are included in its pull-request path filters.
+
+## Preservation extension
+
+The optional preservation policy is additive: default metadata journals and
+ordinary hls4ml calls retain their behavior. `Run(enabled=False)` performs no
+recording IO. `preserve=True` snapshots recorded external files by SHA-256 at
+capture time, so later overwrites cannot erase earlier evidence. Committed Git
+bytes are excluded. NumPy inputs/results of instrumented calls are captured in
+non-pickled format; custom types require explicit native serialization.
+
+A separate packaging module verifies the hash chain and every external file,
+then writes a deterministic ZIP atomically. It rejects missing or changed bytes,
+symlinks, and incomplete runs. The SDK adapter is optional, verifies the target
+server, waits for upload completion, and retains the immutable content ID.
+The metadata graph and stored bundle are separate recoverable publication
+steps; the bundle embeds the entire graph even if graph publication fails.
+
+Verification matrix: `test_dataerai_preservation.py` covers disabled behavior,
+multiple versions at one path, Git exclusions, failed runs, tampering, changed
+legacy references, upload confirmation/server boundaries, all command switches,
+real tutorial execution in disabled/preserved modes, NumPy mutation recovery,
+and repeatable packaging. SDK contract comes from `DataeraiClient.upload` and
+`auth_status`; fake clients exercise adapter failure boundaries, while a live
+account run separately verifies actual remote retention.
+
+Preservation is deliberately strict. Disk exhaustion or unsupported object
+arrays can fail a recorded operation. It is not an OS-wide tracer, a backup of
+all arbitrary memory, or evidence of work performed inside uninstrumented
+remote processes. Users choose the opt-in policy and declare those boundaries.
+
+The coverage review also adds explicit configuration/testbench file references
+and generated `.tar.gz` archives. CLI Vivado/Quartus shell failures now propagate
+nonzero exit codes instead of incorrectly completing a successful workflow.
+Quartus always restores the original directory on failure. This is an intentional
+error-reporting correction; successful CLI command behavior stays the same.
